@@ -1,0 +1,288 @@
+import tkinter as tk
+from tkinter import messagebox, ttk
+import psycopg2
+
+# Hàm kết nối tới cơ sở dữ liệu PostgreSQL
+def connect_db():
+    try:
+        return psycopg2.connect(
+            host="localhost",
+            database="students",
+            user="postgres",
+            password="12345",
+            port="5432"
+        )
+    except Exception as e:
+        messagebox.showerror("Lỗi kết nối", f"Không thể kết nối đến cơ sở dữ liệu: {e}")
+        exit()
+
+# Hàm tải danh sách sinh viên từ cơ sở dữ liệu
+def load_students():
+    conn = connect_db()
+    if conn is None:
+        return
+    try:
+        for row in tree.get_children():
+            tree.delete(row)  # Xóa các dòng hiện có trong treeview
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM students")
+        rows = cur.fetchall()
+        for row in rows:
+            tree.insert("", tk.END, values=row)
+    except Exception as e:
+        messagebox.showerror("Lỗi", f"Không thể tải dữ liệu: {e}")
+    finally:
+        conn.close()
+
+# Hàm thêm sinh viên mới
+def add_student():
+    name = entry_name.get()
+    age = entry_age.get()
+    gender = entry_gender.get()
+    major = entry_major.get()
+
+    if not all([name, age, gender, major]):
+        messagebox.showwarning("Thiếu dữ liệu", "Vui lòng điền đầy đủ thông tin!")
+        return
+
+    conn = connect_db()
+    if conn is None:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO students (name, age, gender, major) VALUES (%s, %s, %s, %s)",
+            (name, age, gender, major)
+        )
+        conn.commit()
+        load_students()
+        messagebox.showinfo("Thành công", "Sinh viên đã được thêm!")
+    except Exception as e:
+        messagebox.showerror("Lỗi", f"Không thể thêm sinh viên: {e}")
+    finally:
+        conn.close()
+
+# Hàm cập nhật thông tin sinh viên
+def update_student():
+    selected = tree.selection()
+    if not selected:
+        messagebox.showwarning("Lỗi chọn", "Vui lòng chọn sinh viên để cập nhật!")
+        return
+
+    student_id = tree.item(selected[0], 'values')[0]
+    name = entry_name.get()
+    age = entry_age.get()
+    gender = entry_gender.get()
+    major = entry_major.get()
+
+    if not all([name, age, gender, major]):
+        messagebox.showwarning("Thiếu dữ liệu", "Vui lòng điền đầy đủ thông tin!")
+        return
+
+    conn = connect_db()
+    if conn is None:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE students SET name=%s, age=%s, gender=%s, major=%s WHERE id=%s",
+            (name, age, gender, major, student_id)
+        )
+        conn.commit()
+        load_students()
+        messagebox.showinfo("Thành công", "Thông tin sinh viên đã được cập nhật!")
+    except Exception as e:
+        messagebox.showerror("Lỗi", f"Không thể cập nhật sinh viên: {e}")
+    finally:
+        conn.close()
+
+# Hàm xóa sinh viên
+def delete_student():
+    selected = tree.selection()
+    if not selected:
+        messagebox.showwarning("Lỗi chọn", "Vui lòng chọn sinh viên để xóa!")
+        return
+
+    student_id = tree.item(selected[0], 'values')[0]
+    confirm = messagebox.askyesno("Xác nhận", "Bạn có chắc chắn muốn xóa sinh viên này?")
+    if not confirm:
+        return
+
+    conn = connect_db()
+    if conn is None:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM students WHERE id=%s", (student_id,))
+        conn.commit()
+        load_students()
+        messagebox.showinfo("Thành công", "Sinh viên đã được xóa!")
+    except Exception as e:
+        messagebox.showerror("Lỗi", f"Không thể xóa sinh viên: {e}")
+    finally:
+        conn.close()
+
+# Hàm tải danh sách khoa và chuyên ngành từ cơ sở dữ liệu
+def load_departments():
+    conn = connect_db()
+    if conn is None:
+        return
+    try:
+        for row in tree_department.get_children():
+            tree_department.delete(row)  # Xóa các dòng hiện có trong treeview
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT majors.id, departments.name, majors.name 
+            FROM majors 
+            JOIN departments ON majors.department_id = departments.id
+        """)
+        rows = cur.fetchall()
+        for row in rows:
+            tree_department.insert("", tk.END, values=row)
+    except Exception as e:
+        messagebox.showerror("Lỗi", f"Không thể tải dữ liệu khoa và chuyên ngành: {e}")
+    finally:
+        conn.close()
+
+# Hàm thêm khoa mới
+def add_department():
+    department_name = entry_department_name.get()
+
+    if not department_name:
+        messagebox.showwarning("Thiếu dữ liệu", "Vui lòng nhập tên Khoa!")
+        return
+
+    conn = connect_db()
+    if conn is None:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("INSERT INTO departments (name) VALUES (%s)", (department_name,))
+        conn.commit()
+        load_departments()
+        messagebox.showinfo("Thành công", "Khoa đã được thêm!")
+    except Exception as e:
+        messagebox.showerror("Lỗi", f"Không thể thêm Khoa: {e}")
+    finally:
+        conn.close()
+
+# Hàm thêm chuyên ngành mới
+def add_major():
+    major_name = entry_major_name.get()
+    department_name = entry_department_name.get()
+
+    if not all([major_name, department_name]):
+        messagebox.showwarning("Thiếu dữ liệu", "Vui lòng điền đầy đủ thông tin!")
+        return
+
+    conn = connect_db()
+    if conn is None:
+        return
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM departments WHERE name=%s", (department_name,))
+        department_id = cur.fetchone()
+        if department_id is None:
+            messagebox.showerror("Lỗi", "Khoa không tồn tại!")
+            return
+        cur.execute("INSERT INTO majors (name, department_id) VALUES (%s, %s)", (major_name, department_id[0]))
+        conn.commit()
+        load_departments()
+        messagebox.showinfo("Thành công", "Chuyên ngành đã được thêm!")
+    except Exception as e:
+        messagebox.showerror("Lỗi", f"Không thể thêm chuyên ngành: {e}")
+    finally:
+        conn.close()
+
+
+
+# Tạo cửa sổ chính
+root = tk.Tk()
+root.title("Quản lý Sinh Viên")
+
+# Tạo Notebook để chia giao diện thành các tab
+notebook = ttk.Notebook(root)
+notebook.grid(row=0, column=0, padx=10, pady=10)
+
+# Tab 1: Quản lý Sinh viên
+frame_students = ttk.Frame(notebook)
+notebook.add(frame_students, text="Quản lý Sinh viên")
+
+# Các nhãn và ô nhập liệu cho tab Sinh viên
+tk.Label(frame_students, text="Tên:").grid(row=0, column=0, padx=10, pady=5)
+entry_name = tk.Entry(frame_students)
+entry_name.grid(row=0, column=1, padx=10, pady=5)
+
+tk.Label(frame_students, text="Tuổi:").grid(row=0, column=2, padx=10, pady=5)
+entry_age = tk.Entry(frame_students)
+entry_age.grid(row=0, column=3, padx=10, pady=5)
+
+tk.Label(frame_students, text="Giới tính:").grid(row=1, column=0, padx=10, pady=5)
+entry_gender = tk.Entry(frame_students)
+entry_gender.grid(row=1, column=1, padx=10, pady=5)
+
+tk.Label(frame_students, text="Ngành học:").grid(row=1, column=2, padx=10, pady=5)
+entry_major = tk.Entry(frame_students)
+entry_major.grid(row=1, column=3, padx=10, pady=5)
+
+# Các nút hành động cho tab Sinh viên
+btn_add = tk.Button(frame_students, text="Thêm sinh viên", command=add_student)
+btn_add.grid(row=2, column=0, padx=10, pady=5)
+
+btn_update = tk.Button(frame_students, text="Cập nhật thông tin", command=update_student)
+btn_update.grid(row=2, column=1, padx=10, pady=5)
+
+btn_delete = tk.Button(frame_students, text="Xóa sinh viên", command=delete_student)
+btn_delete.grid(row=2, column=2, padx=10, pady=5)
+
+btn_reload = tk.Button(frame_students, text="Tải lại danh sách", command=load_students)
+btn_reload.grid(row=2, column=3, padx=10, pady=5)
+
+# Treeview để hiển thị danh sách sinh viên
+tree = ttk.Treeview(frame_students, columns=("ID", "Tên", "Tuổi", "Giới tính", "Ngành"), show="headings")
+tree.grid(row=3, column=0, columnspan=4, padx=10, pady=5)
+tree.heading("ID", text="ID")
+tree.heading("Tên", text="Tên")
+tree.heading("Tuổi", text="Tuổi")
+tree.heading("Giới tính", text="Giới tính")
+tree.heading("Ngành", text="Ngành")
+
+# Tab 2: Quản lý Khoa và Chuyên ngành
+frame_departments = ttk.Frame(notebook)
+notebook.add(frame_departments, text="Quản lý Khoa và Chuyên ngành")
+
+# Các nhãn và ô nhập liệu cho tab Khoa và Chuyên ngành
+tk.Label(frame_departments, text="Khoa:").grid(row=0, column=0, padx=10, pady=5)
+entry_department = tk.Entry(frame_departments)
+entry_department.grid(row=0, column=1, padx=10, pady=5)
+
+tk.Label(frame_departments, text="Chuyên ngành:").grid(row=0, column=2, padx=10, pady=5)
+entry_major_dep = tk.Entry(frame_departments)
+entry_major_dep.grid(row=0, column=3, padx=10, pady=5)
+
+# Các nút hành động cho tab Khoa và Chuyên ngành
+btn_add_department = tk.Button(frame_departments, text="Thêm Khoa", command=add_student)
+btn_add_department.grid(row=1, column=0, padx=10, pady=5)
+
+btn_update_department = tk.Button(frame_departments, text="Cập nhật Khoa", command=update_student)
+btn_update_department.grid(row=1, column=1, padx=10, pady=5)
+
+btn_delete_department = tk.Button(frame_departments, text="Xóa Khoa", command=delete_student)
+btn_delete_department.grid(row=1, column=2, padx=10, pady=5)
+
+btn_reload_department = tk.Button(frame_departments, text="Tải lại danh sách Khoa", command=load_departments)
+btn_reload_department.grid(row=1, column=3, padx=10, pady=5)
+
+# Treeview để hiển thị danh sách Khoa và Chuyên ngành
+tree_department = ttk.Treeview(frame_departments, columns=("ID", "Khoa", "Chuyên ngành"), show="headings")
+tree_department.grid(row=3, column=0, columnspan=4, padx=10, pady=5)
+tree_department.heading("ID", text="ID")
+tree_department.heading("Khoa", text="Khoa")
+tree_department.heading("Chuyên ngành", text="Chuyên ngành")
+
+# Tải danh sách sinh viên khi ứng dụng bắt đầu
+load_students()
+load_departments()
+
+# Khởi động ứng dụng
+root.mainloop()
